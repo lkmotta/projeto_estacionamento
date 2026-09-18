@@ -1,13 +1,14 @@
 import database
 import sys
 
-def menu_principal(username):
+def menu_principal(username, user_type):
     while True:
-        print(f"\n--- Estacionamento Campus | Usuário: {username} ---")
+        tipo_str = "Servidor" if user_type == "servidor" else "Aluno"
+        print(f"\n--- Estacionamento Campus | Usuário: {username} ({tipo_str}) ---")
         print("1. Ver status das vagas")
         print("2. Estacionar carro (Ocupar vaga)")
         print("3. Retirar carro (Liberar vaga)")
-        print("4. Sincronizar dados (Simulação Offline -> Online)")
+        print("4. Sincronizar dados (Offline -> Online)")
         print("5. Sair")
         print("6. Fazer Logout")
         
@@ -15,23 +16,26 @@ def menu_principal(username):
 
         if opcao == '1':
             vagas = database.get_vagas()
-            print("\n--- Status Atual ---")
-            for v_id, estado in vagas:
-                print(f"Vaga {v_id:02d} - [{estado.upper()}]")
+            print("\n--- Status Atual das Vagas ---")
+            for v_id, estado, reservada in vagas:
+                tag_res = " [RESERVADA SERVIDOR]" if reservada == 1 else ""
+                print(f"Vaga {v_id:02d} - [{estado.upper()}]{tag_res}")
         
         elif opcao == '2':
             v_id = input("Digite o ID da vaga que deseja ocupar: ")
-            if v_id.isdigit() and database.atualizar_vaga(int(v_id), 'ocupada'):
-                print(f"Vaga {v_id} marcada como OCUPADA. (Salvo localmente)")
+            if v_id.isdigit():
+                sucesso, msg = database.atualizar_vaga(int(v_id), 'ocupada', user_type)
+                print(msg)
             else:
-                print("Vaga inválida ou não encontrada.")
+                print("ID de vaga inválido.")
                 
         elif opcao == '3':
             v_id = input("Digite o ID da vaga que deseja liberar: ")
-            if v_id.isdigit() and database.atualizar_vaga(int(v_id), 'livre'):
-                print(f"Vaga {v_id} marcada como LIVRE. (Salvo localmente)")
+            if v_id.isdigit():
+                sucesso, msg = database.atualizar_vaga(int(v_id), 'livre', user_type)
+                print(msg)
             else:
-                print("Vaga inválida ou não encontrada.")
+                print("ID de vaga inválido.")
                 
         elif opcao == '4':
             print("Conectando ao servidor central...")
@@ -44,7 +48,7 @@ def menu_principal(username):
             
         elif opcao == '6':
             database.do_logout()
-            print("Logout realizado. Execute o app novamente para logar.")
+            print("Logout realizado. Execute o app novamente para entrar.")
             sys.exit()
         else:
             print("Opção inválida.")
@@ -52,15 +56,26 @@ def menu_principal(username):
 if __name__ == '__main__':
     database.init_db()
     
-    is_logged, user = database.check_login()
+    is_logged, user, user_type = database.check_login()
     
     if not is_logged:
-        print("Nenhuma sessão encontrada. É necessário fazer login.")
-        user = input("Digite seu nome de usuário ou RA: ")
-        # Em um cenário real, aqui validaria a senha contra uma API
-        database.do_login(user)
-        print("Login realizado com sucesso e sessão salva!")
-    else:
-        print(f"Sessão recuperada automaticamente. Bem-vindo de volta, {user}!")
+        print("--- Tela de Autenticação ---")
+        print("- Alunos: digite o RA com 7 dígitos (ex: 1234567)")
+        print("- Servidores: digite o e-mail institucional (@utfpr.edu.br ou @professores.utfpr.edu.br)")
         
-    menu_principal(user)
+        while True:
+            login_input = input("\nDigite seu RA ou E-mail: ").strip()
+            valido, tipo = database.validar_credencial(login_input)
+            
+            if valido:
+                user = login_input
+                user_type = tipo
+                database.do_login(user, user_type)
+                print(f"Login efetuado com sucesso como {user_type.upper()}!")
+                break
+            else:
+                print("Credencial inválida! Certifique-se de usar RA (7 dígitos) ou e-mail institucional UTFPR.")
+    else:
+        print(f"Sessão recuperada automaticamente. Bem-vindo de volta, {user} ({user_type.upper()})!")
+        
+    menu_principal(user, user_type)
